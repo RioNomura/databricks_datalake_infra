@@ -5,6 +5,10 @@
 
 データ取り込みのジョブ（DABs）は [datalake_databricks_homes](https://github.com/RioNomura/datalake_databricks_homes) で管理する。
 
+権限グループの作成とメンバー（誰がどのグループに入るか）は、private リポジトリ `databricks_datalake_identity` で管理する。
+このリポジトリではグループ名に対して GRANT するだけにし、個人のメールアドレスは書かない（公開リポジトリのため）。
+新しいカタログを作るときは、先に identity 側で `<カタログ名>_admin` などのグループを作ってから、ここで GRANT する。
+
 ## 構成
 
 ```
