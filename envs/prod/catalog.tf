@@ -5,10 +5,9 @@
 #
 # 注意: 既定のストレージのカタログは、Terraform（カタログ作成 API）では作れない
 #   （"Metastore storage root URL does not exist. Default Storage is enabled ..." で失敗する）。
-#   そのため、カタログ本体だけは先に SQL で作り、持ち主をサービスプリンシパルに移してから、下の import で取り込む:
-#     CREATE CATALOG <名前>;
-#     ALTER CATALOG <名前> OWNER TO `<サービスプリンシパルの Application ID>`;
-#   取り込んだ後は通常どおり Terraform で管理する（コメント・持ち主・スキーマ・権限）。
+#   そのため、カタログ本体だけは先にサービスプリンシパルの権限で SQL の CREATE CATALOG を実行して作り、下の import で取り込む。
+#   個人のアカウントで作ると作成者（created_by）にメールアドレスが残り、公開リポジトリの plan に表示されてしまうので必ず SP で作る。
+#   手順は README の「新しいカタログを作る」を参照。取り込んだ後は通常どおり Terraform で管理する（コメント・持ち主・スキーマ・権限）。
 import {
   to = databricks_catalog.rental_property
   id = "rental_property"
@@ -24,6 +23,12 @@ resource "databricks_catalog" "rental_property" {
   comment       = "賃貸物件データ。Terraform（databricks_datalake_infra）で管理"
   owner         = data.databricks_current_user.terraform.user_name
   force_destroy = false
+
+  # SQL で作ると storage_root（既定のストレージの場所）と properties（照合順序）が自動で入る。
+  # Terraform には書かない値なので差分にしない（storage_root の差分は「作り直し」と判定され、作成 API で失敗するため）
+  lifecycle {
+    ignore_changes = [storage_root, properties]
+  }
 }
 
 # スキーマ = データの加工段階（メダリオン構成 + セマンティック層）
