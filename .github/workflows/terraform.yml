@@ -63,28 +63,24 @@ jobs:
       - name: terraform validate
         run: terraform validate -no-color
 
+      # plan の結果は tfcmt が PR にコメントする（タイトル「Plan Result (envs/prod)」、要約・種類ごとのリソース一覧・折りたたみの詳細）
+      # -patch で同じ PR の前回コメントを上書きし、push のたびにコメントが増えないようにする
+      - uses: shmokmt/actions-setup-tfcmt@v2
+        with:
+          version: v4.6.0
+
       - name: terraform plan
-        run: terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tfcmt -var target:envs/prod plan -patch -- \
+            terraform plan -input=false -no-color -out=tfplan
 
       - name: Notion 同期のプレビュー
         run: |
           terraform show -json tfplan > plan.json
           echo '{}' > state.json
           python3 "$GITHUB_WORKSPACE/scripts/notion_sync.py" --plan plan.json --state state.json --dry-run
-
-      - name: plan の結果を PR にコメント
-        if: always()
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const fs = require('fs');
-            const path = 'envs/prod/plan.txt';
-            const plan = fs.existsSync(path) ? fs.readFileSync(path, 'utf8').slice(-60000) : 'plan が実行されませんでした。ログを確認してください。';
-            await github.rest.issues.createComment({
-              ...context.repo,
-              issue_number: context.issue.number,
-              body: "### terraform plan\n```\n" + plan + "\n```"
-            });
 
   apply:
     if: github.event_name == 'push'
@@ -111,10 +107,18 @@ jobs:
       - name: terraform plan
         run: terraform plan -input=false -no-color -out=tfplan
 
+      # apply の結果も tfcmt がマージ元の PR にコメントする（タイトル「Apply Result (envs/prod)」）
+      - uses: shmokmt/actions-setup-tfcmt@v2
+        with:
+          version: v4.6.0
+
       - name: terraform apply
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           terraform show -json tfplan > plan.json
-          terraform apply -input=false -no-color tfplan
+          tfcmt -var target:envs/prod apply -- \
+            terraform apply -input=false -no-color tfplan
 
       - name: Notion のリソース台帳を更新
         env:
