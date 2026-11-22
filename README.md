@@ -16,6 +16,8 @@ envs/prod/                       ワークスペースに適用するルート�
 modules/                         再利用する Terraform モジュール（カタログ、シークレットスコープなど）
 .github/workflows/terraform.yml  PR で plan、main へのマージで apply、apply 後に Notion の台帳を更新
 scripts/notion_sync.py           apply 結果を Notion「リソース台帳」に反映するスクリプト
+.github/workflows/create-catalog.yml  手動実行: カタログ本体をサービスプリンシパルの権限で作る
+scripts/create_catalog.py             create-catalog が実行するスクリプト
 ```
 
 ## CI/CD の流れ
@@ -35,6 +37,7 @@ scripts/notion_sync.py           apply 結果を Notion「リソース台帳」�
 | Secret | `TF_API_TOKEN` | HCP Terraform の API トークン |
 | Secret | `NOTION_TOKEN` | Notion インテグレーションのトークン |
 | Variable | `TF_CLOUD_ORGANIZATION` | HCP Terraform の Organization 名 |
+| Secret | `DATABRICKS_WAREHOUSE_ID` | create-catalog が SQL を実行する SQL ウェアハウスの ID（ログで伏せるため Secret にしている） |
 | Variable | `NOTION_DATABASE_ID` | Notion「リソース台帳」のデータベース ID |
 
 ## Notion 同期スクリプトの確認

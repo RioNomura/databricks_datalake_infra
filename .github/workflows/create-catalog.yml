@@ -1,0 +1,48 @@
+name: create-catalog
+
+# Unity Catalog のカタログ本体を、サービスプリンシパル（SP）の権限で作る（手動実行）
+# Free Edition の既定のストレージのカタログは Terraform では作れないため、本体だけここで作り、
+# そのあと envs/prod/ に import ブロックを書いて Terraform に取り込む（README「新しいカタログを作る」）。
+# SP が実行するので、作成者・持ち主は必ず SP になり、個人のメールアドレスが残らない。
+on:
+  workflow_dispatch:
+    inputs:
+      catalog_name:
+        description: カタログ名（小文字・数字・アンダースコア。例 job_market）
+        required: true
+        type: string
+      comment:
+        description: カタログの説明
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# terraform の apply と同時に走らないよう、同じグループにする
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
+jobs:
+  create:
+    # main 以外のブランチから実行されても作らない
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-26.04
+    # apply と同じ Environment（main からのみ・設定されていれば承認が必要）
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+
+      # 入力値は ${{ }} で run に直接埋め込まず、環境変数で渡す（シェルへのコマンド注入を防ぐ）
+      - name: カタログを作成
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+          DATABRICKS_WAREHOUSE_ID: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ vars.NOTION_DATABASE_ID }}
+          CATALOG_NAME: ${{ inputs.catalog_name }}
+          CATALOG_COMMENT: ${{ inputs.comment }}
+        run: python3 scripts/create_catalog.py --name "$CATALOG_NAME" --comment "$CATALOG_COMMENT"
