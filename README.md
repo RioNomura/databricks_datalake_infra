@@ -37,6 +37,19 @@ scripts/notion_sync.py           apply 結果を Notion「リソース台帳」�
 | Variable | `TF_CLOUD_ORGANIZATION` | HCP Terraform の Organization 名 |
 | Variable | `NOTION_DATABASE_ID` | Notion「リソース台帳」のデータベース ID |
 
+## 新しいカタログを作る
+
+Free Edition の既定のストレージ（Default Storage）に置くカタログは、Terraform（カタログ作成 API）では作れない。
+カタログ本体だけ SQL で作って import し、スキーマ・権限は通常どおり Terraform で作る。
+
+1. **グループ**: private の `databricks_datalake_identity` の `groups.yml` に `<カタログ名>_admin` を追加してマージする
+2. **カタログ本体**: GitHub の Actions → `create-catalog` → Run workflow（ブランチ main）で、カタログ名と説明を入れて実行する
+   - サービスプリンシパル（`github-actions-terraform`）の権限で `CREATE CATALOG` を実行するので、作成者・持ち主は必ず SP になる
+   - 個人のアカウントで作ると作成者（`created_by`）にメールアドレスが残り、この公開リポジトリの plan ログ・PR コメントに出てしまうため、画面や自分の CLI からは作らない
+   - 同じ名前のカタログがあれば失敗する。成功するとリソース台帳にも行が追加される
+3. **Terraform**: `envs/prod/` に `import` ブロック、`databricks_catalog`（`owner` は `data.databricks_current_user`、`lifecycle { ignore_changes = [storage_root, properties] }`）、スキーマ、グループへの `databricks_grants` を書いて PR を作る
+4. plan が「1 to import」「カタログの置き換え（must be replaced）なし」になっていることを確認してマージする
+
 ## Notion 同期スクリプトの確認
 
 ```bash

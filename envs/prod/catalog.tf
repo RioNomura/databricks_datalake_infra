@@ -2,13 +2,33 @@
 # - bronze: スクレイピングなどで取得したデータをそのまま保存する層
 #   （datalake_databricks_homes の homes_rental_ingest ジョブが書き込む）
 # Free Edition はメタストアにストレージの場所が無く、既定のストレージ（Default Storage）に置かれるため storage_root は指定しない
+#
+# 注意: 既定のストレージのカタログは、Terraform（カタログ作成 API）では作れない
+#   （"Metastore storage root URL does not exist. Default Storage is enabled ..." で失敗する）。
+#   そのため、カタログ本体だけは先にサービスプリンシパルの権限で SQL の CREATE CATALOG を実行して作り（rental_property は一時ジョブで作成）、下の import で取り込む。
+#   個人のアカウントで作ると作成者（created_by）にメールアドレスが残り、公開リポジトリの plan に表示されてしまうので必ず SP で作る。
+#   カタログ本体は Actions の create-catalog ワークフローで作る（README「新しいカタログを作る」）。取り込んだ後は通常どおり Terraform で管理する（コメント・持ち主・スキーマ・権限）。
+import {
+  to = databricks_catalog.rental_property
+  id = "rental_property"
+}
 
-# Terraform を実行するサービスプリンシパルが持ち主になる
+# Terraform を実行している ID（CI ではサービスプリンシパル github-actions-terraform）。user_name は Application ID になる
+data "databricks_current_user" "terraform" {}
+
+# 持ち主は Terraform を実行するサービスプリンシパル（本番ジョブの run_as と同じ）
 # force_destroy = false: 中にテーブルがあるときは destroy で一緒に消さない
 resource "databricks_catalog" "rental_property" {
   name          = "rental_property"
   comment       = "賃貸物件データ。Terraform（databricks_datalake_infra）で管理"
+  owner         = data.databricks_current_user.terraform.user_name
   force_destroy = false
+
+  # SQL で作ると storage_root（既定のストレージの場所）と properties（照合順序）が自動で入る。
+  # Terraform には書かない値なので差分にしない（storage_root の差分は「作り直し」と判定され、作成 API で失敗するため）
+  lifecycle {
+    ignore_changes = [storage_root, properties]
+  }
 }
 
 # スキーマ = データの加工段階（メダリオン構成 + セマンティック層）
