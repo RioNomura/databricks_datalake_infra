@@ -49,8 +49,10 @@ resource "databricks_grants" "used_car" {
   catalog = databricks_catalog.used_car.name
 
   # used_car カタログの管理者。dev ターゲットでジョブを試したり、中身を確認したりできるようにする
+  # MANAGE: 本番ジョブ（サービスプリンシパル）が作ったテーブルを、取り込みのやり直し時などに削除できるようにする
+  #   （ALL_PRIVILEGES には MANAGE が含まれず、持ち主でないテーブルは DROP できない）
   grant {
     principal  = "used_car_admin"
-    privileges = ["ALL_PRIVILEGES"]
+    privileges = ["ALL_PRIVILEGES", "MANAGE"]
   }
 }
