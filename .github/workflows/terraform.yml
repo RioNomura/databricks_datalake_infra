@@ -117,7 +117,17 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           terraform show -json tfplan > plan.json
-          tfcmt -var target:envs/prod apply -- \
+          # マージコミットから元の PR 番号を調べて tfcmt に渡す。
+          # tfcmt 任せだと PR が見つからなかったときにコミットへのコメントになり、
+          # contents: read では書けずに何も残らない（エラーも出ない）ため
+          pr=""
+          for attempt in 1 2 3; do
+            pr=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].number // empty' || true)
+            [ -n "$pr" ] && break
+            sleep 5
+          done
+          echo "コメント先の PR: ${pr:-見つからず}"
+          tfcmt ${pr:+-pr "$pr"} -var target:envs/prod apply -- \
             terraform apply -input=false -no-color tfplan
 
       - name: Notion のリソース台帳を更新
